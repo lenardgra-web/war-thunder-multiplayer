@@ -1,0 +1,12 @@
+{
+  "name": "war-thunder-multiplayer-server",
+  "version": "1.0.0",
+  "description": "Multiplayer signaling server for WT Web",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.13.0"
+  }
+}
