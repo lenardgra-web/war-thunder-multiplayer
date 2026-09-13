@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>War Thunder Web - MULTIPLAYER 20os</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0f172a; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-card {
+            background: #1e293b; padding: 40px; border-radius: 12px; border: 1px solid #334155;
+            text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8); max-width: 650px; width: 90%;
+        }
+        h1 { color: #f59e0b; margin-top: 0; font-size: 32px; letter-spacing: 2px; }
+        .btn {
+            background: #f59e0b; color: #0f172a; border: none; padding: 14px 28px;
+            font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer;
+            margin: 10px 0; transition: all 0.2s; width: 85%;
+        }
+        .btn:hover { background: #d97706; transform: translateY(-2px); }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-secondary { background: #475569; color: #fff; }
+        .btn-secondary:hover { background: #334155; }
+        
+        select {
+            background: #0f172a; color: #fff; border: 1px solid #475569; padding: 10px;
+            font-size: 16px; border-radius: 6px; width: 85%; margin-bottom: 20px;
+        }
+
+        #game-ui { display: none; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; color: #fff;
+            background: rgba(15, 23, 42, 0.85); padding: 15px 20px; border-radius: 8px;
+            pointer-events: none; border: 1px solid rgba(255,255,255,0.15);
+        }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 16px; height: 16px;
+            margin-top: -8px; margin-left: -8px; border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%; pointer-events: none; transform: translate3d(0,0,0);
+        }
+        #crosshair::after {
+            content: ''; position: absolute; top: 6px; left: 6px; width: 4px; height: 4px;
+            background: #3b82f6; border-radius: 50%;
+        }
+        #reload-bar-container { width: 100%; background: #334155; height: 6px; border-radius: 3px; margin-top: 8px; }
+        #reload-bar { width: 100%; height: 100%; background: #22c55e; }
+        #xray {
+            position: absolute; bottom: 15px; right: 15px; width: 280px;
+            background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15);
+            color: #e2e8f0; padding: 12px; font-size: 13px; border-radius: 8px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<!-- MENU GŁÓWNE -->
+<div id="menu-overlay" class="modal-overlay">
+    <div class="modal-card">
+        <h1>WAR THUNDER WEB</h1>
+        <p id="txt-sub" style="color: #94a3b8;">Wybierz tryb rozgrywki i mapę</p>
+        
+        <label id="lbl-map" style="color:#e2e8f0; display:block; margin-bottom:5px; text-align:left; margin-left:7.5%;">Wybór Mapy:</label>
+        <select id="map-select">
+            <option value="city" id="opt-city">Miasto (Budynki z oknami)</option>
+            <option value="mountains" id="opt-mountains">Góry (Wysokie Szczyty)</option>
+            <option value="desert" id="opt-desert">Pustynia (Ogromne Wydmy)</option>
+        </select>
+
+        <button class="btn" id="btn-start" onclick="startGame(false)">SINGLE PLAYER (10 BOTÓW)</button>
+        <button class="btn btn-secondary" id="btn-multiplayer" onclick="openMultiplayerMenu()">MULTIPLAYER (20 OS)</button>
+        <button class="btn btn-secondary" id="btn-options" onclick="openOptions()">OPCJE / OPTIONS</button>
+    </div>
+</div>
+
+<!-- LOBBY / LISTA POKOI MULTIPLAYER -->
+<div id="room-menu" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 650px;">
+        <h1 id="txt-lobby-title">LISTA POKOI MULTIPLAYER</h1>
+        
+        <div style="display:flex; gap:10px; margin-bottom: 20px;">
+            <input type="text" id="new-room-name" placeholder="Nazwa Twojego pokoju..." style="flex:1; padding: 10px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#fff;">
+            <button class="btn" style="width: auto; margin:0;" onclick="createRoom()">+ STWÓRZ POKÓJ</button>
+        </div>
+
+        <hr style="border-color: #334155; margin-bottom: 15px;">
+
+        <div style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; color: #e2e8f0;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #475569; color: #f59e0b;">
+                        <th style="padding: 8px;">NAZWA POKOJU</th>
+                        <th style="padding: 8px;">GRACZE</th>
+                        <th style="padding: 8px; text-align: right;">AKCJA</th>
+                    </tr>
+                </thead>
+                <tbody id="rooms-table-body">
+                    <tr>
+                        <td colspan="3" style="padding: 15px; text-align: center; color: #94a3b8;">Łączenie z chmurą...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <button class="btn btn-secondary" onclick="closeMultiplayerMenu()">POWRÓT / BACK</button>
+    </div>
+</div>
+
+<!-- MENU OPCJI -->
+<div id="options-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <h1 id="txt-opt-title">OPCJE</h1>
+        <label id="lbl-lang" style="color:#e2e8f0; display:block; margin-bottom:5px; text-align:left; margin-left:7.5%;">Język / Language:</label>
+        <select id="lang-select" onchange="changeLanguage(this.value)">
+            <option value="pl">Polski</option>
+            <option value="en">English</option>
+        </select>
+        <button class="btn" id="btn-opt-back" onclick="closeOptions()">POWRÓT / BACK</button>
+    </div>
+</div>
+
+<!-- MENU PAUZY -->
+<div id="pause-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <h1 id="txt-pause">PAUZA</h1>
+        <button class="btn" id="btn-resume" onclick="resumeGame()">WZNÓW GRĘ</button>
+        <button class="btn btn-danger" id="btn-exit" onclick="exitToMainMenu()">WYJDŹ DO MENU</button>
+    </div>
+</div>
+
+<!-- MENU ŚMIERCI -->
+<div id="death-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <h1 id="txt-death-title" style="color: #ef4444;">TWÓJ CZOŁG ZOSTAŁ ZNISZCZONY</h1>
+        <p id="death-stats" style="color: #94a3b8;">Zniszczone boty: 0</p>
+        <button class="btn" id="btn-restart" onclick="restartGame()">ZAGRAJ PONOWNIE</button>
+        <button class="btn btn-danger" id="btn-death-exit" onclick="exitToMainMenu()">WYJDŹ DO MENU</button>
+    </div>
+</div>
+
+<!-- HUD -->
+<div id="game-ui">
+    <div id="ui">
+        <h2 id="txt-player-title" style="color:#3b82f6; margin:0; font-size:16px;">GRACZ (NIEBIESKI)</h2>
+        <p><span id="lbl-hp">HP Gracza</span>: <b id="player-hp" style="color:#22c55e">3 / 3</b></p>
+        <p><span id="lbl-gun">Działo</span>: <b>120 mm</b> | <span id="lbl-hull">Kadłub</span>: <b>250 mm</b> | <span id="lbl-turret">Wieża</span>: <b>100 mm</b></p>
+        <p id="bot-count" style="color:#ef4444; font-weight:bold;">Wrogowie: 10/10</p>
+        <div id="reload-bar-container"><div id="reload-bar"></div></div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="xray">
+        <b id="txt-xray-title" style="color: #f59e0b;">ANALIZA BALISTYCZNA</b><br>
+        <hr style="border-color: rgba(255,255,255,0.1); margin: 5px 0;">
+        <span id="xray-info">Celuj w wieżę wrogów! Pokonaj ich.</span>
+    </div>
+</div>
+
+<script>
+// --- TŁUMACZENIA ---
+let currentLang = 'pl';
+const translations = {
+    pl: {
+        sub: "Wybierz tryb rozgrywki i mapę", mapLbl: "Wybór Mapy:",
+        optCity: "Miasto (Budynki z oknami)", optMountains: "Góry (Wysokie Szczyty)", optDesert: "Pustynia (Ogromne Wydmy)",
+        btnStart: "SINGLE PLAYER (10 BOTÓW)", btnOpt: "OPCJE / OPTIONS", optTitle: "OPCJE", langLbl: "Język / Language:",
+        btnBack: "POWRÓT", pause: "PAUZA", resume: "WZNÓW GRĘ", exit: "WYJDŹ DO MENU",
+        deathTitle: "TWÓJ CZOŁG ZOSTAŁ ZNISZCZONY", restart: "ZAGRAJ PONOWNIE", playerTitle: "GRACZ (NIEBIESKI)",
+        hp: "HP Gracza", gun: "Działo", hull: "Kadłub", turret: "Wieża", botCount: "Wrogowie", players: "Gracze",
+        xrayTitle: "ANALIZA BALISTYCZNA", xrayInit: "Budynki blokują pociski. Celuj w wieże wrogów!",
+        noPen: "BRAK PENETRACJI!", ricochet: "RYKOSZET!", pen: "PENETRACJA!", turretHit: "PRZEBICIE WIEŻY!",
+        hitBuilding: "POCISK UDERZYŁ W BUDYNEK!", lobbyTitle: "LISTA POKOI MULTIPLAYER"
+    },
+    en: {
+        sub: "Select game mode and map", mapLbl: "Select Map:",
+        optCity: "City (Buildings with windows)", optMountains: "Mountains (High Peaks)", optDesert: "Desert (Huge Dunes)",
+        btnStart: "SINGLE PLAYER (10 BOTS)", btnOpt: "OPTIONS", optTitle: "OPTIONS", langLbl: "Language:",
+        btnBack: "BACK", pause: "PAUSE", resume: "RESUME GAME", exit: "EXIT TO MENU",
+        deathTitle: "YOUR TANK WAS DESTROYED", restart: "PLAY AGAIN", playerTitle: "PLAYER (BLUE)",
+        hp: "Player HP", gun: "Gun", hull: "Hull", turret: "Turret", botCount: "Enemies", players: "Players",
+        xrayTitle: "BALLISTIC ANALYSIS", xrayInit: "Buildings block shells. Aim for enemy turrets!",
+        noPen: "NO PENETRATION!", ricochet: "RICOCHET!", pen: "PENETRATION!", turretHit: "TURRET PENETRATED!",
+        hitBuilding: "SHELL HIT A BUILDING!", lobbyTitle: "MULTIPLAYER LOBBY"
+    }
+};
+
+function changeLanguage(lang) {
+    currentLang = lang;
+    const t = translations[lang];
+    document.getElementById('txt-sub').innerText = t.sub;
+    document.getElementById('lbl-map').innerText = t.mapLbl;
+    document.getElementById('opt-city').innerText = t.optCity;
+    document.getElementById('opt-mountains').innerText = t.optMountains;
+    document.getElementById('opt-desert').innerText = t.optDesert;
+    document.getElementById('btn-start').innerText = t.btnStart;
+    document.getElementById('btn-options').innerText = t.btnOpt;
+    document.getElementById('txt-opt-title').innerText = t.optTitle;
+    document.getElementById('lbl-lang').innerText = t.langLbl;
+    document.getElementById('btn-opt-back').innerText = t.btnBack;
+    document.getElementById('txt-pause').innerText = t.pause;
+    document.getElementById('btn-resume').innerText = t.resume;
+    document.getElementById('btn-exit').innerText = t.exit;
+    document.getElementById('btn-death-exit').innerText = t.exit;
+    document.getElementById('txt-death-title').innerText = t.deathTitle;
+    document.getElementById('btn-restart').innerText = t.restart;
+    document.getElementById('txt-player-title').innerText = t.playerTitle;
+    document.getElementById('lbl-hp').innerText = t.hp;
+    document.getElementById('lbl-gun').innerText = t.gun;
+    document.getElementById('lbl-hull').innerText = t.hull;
+    document.getElementById('lbl-turret').innerText = t.turret;
+    document.getElementById('txt-xray-title').innerText = t.xrayTitle;
+    document.getElementById('xray-info').innerText = t.xrayInit;
+    document.getElementById('txt-lobby-title').innerText = t.lobbyTitle;
+}
+
+function openOptions() { document.getElementById('options-overlay').style.display = 'flex'; }
+function closeOptions() { document.getElementById('options-overlay').style.display = 'none'; }
+
+// --- ADRES SERWERA W CHMURZE ---
+// !!! PODMIEŃ NA ADRES ZE SWOJEGO RENDERA (np. wss://moj-war-thunder.onrender.com) !!!
+const SIGNAL_SERVER = "wss://war-thunder-multiplayer.onrender.com"; 
+
+let ws;
+let isMultiplayer = false;
+let isHost = false;
+let myClientId = null;
+let activeRoomId = null;
+const peerConnections = {}; 
+const remoteTanks = {}; 
+
+let SCENE, CAMERA, RENDERER;
+let playerTank;
+let bots = [];
+let bullets = [];
+let obstacleBoxes = []; 
+let collidableMeshes = [];
+let shootableTargets = [];
+let mapType = 'city';
+const keys = {};
+const mouse = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+
+let gameActive = false;
+let isPaused = false;
+let destroyedBotsCount = 0;
+let animFrameId = null;
+
+const TANK_SPEED = 0.3;
+const TANK_ROTATE_SPEED = 0.025;
+const TANK_RADIUS = 3.2;
+
+function openMultiplayerMenu() {
+    document.getElementById('room-menu').style.display = 'flex';
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        connectToCloud();
+    }
+}
+
+function closeMultiplayerMenu() {
+    document.getElementById('room-menu').style.display = 'none';
+}
+
+// --- POŁĄCZENIE Z SERWEREM SYGNALIZACYJNYM ---
+function connectToCloud() {
+    ws = new WebSocket(SIGNAL_SERVER);
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'roomList') {
+            updateRoomsTable(data.rooms);
+        }
+
+        if (data.type === 'roomCreated') {
+            isHost = true;
+            isMultiplayer = true;
+            myClientId = data.clientId;
+            activeRoomId = data.roomId;
+            closeMultiplayerMenu();
+            startGame(true); 
+        }
+
+        if (data.type === 'roomJoined') {
+            isHost = false;
+            isMultiplayer = true;
+            myClientId = data.clientId;
+            activeRoomId = data.roomId;
+            closeMultiplayerMenu();
+            startGame(true);
+        }
+
+        if (data.type === 'playerJoinedRoom' && isHost) {
+            initPeerConnection(data.newClientId, true);
+        }
+
+        if (data.type === 'signal') {
+            handleSignalData(data.senderId, data.signalData);
+        }
+
+        if (data.type === 'playerLeftRoom') {
+            removeRemotePlayer(data.clientId);
+        }
+
+        if (data.type === 'roomClosed') {
+            alert("Lobby zostało zamknięte przez Hosta.");
+            exitToMainMenu();
+        }
+
+        if (data.type === 'error') {
+            alert(data.message);
+        }
+    };
+}
+
+function updateRoomsTable(rooms) {
+    const tbody = document.getElementById('rooms-table-body');
+    tbody.innerHTML = '';
+
+    if (rooms.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding: 15px; text-align: center; color: #94a3b8;">Brak aktywnych pokoi. Stwórz pierwszy!</td></tr>`;
+        return;
+    }
+
+    rooms.forEach(room => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #334155';
+        
+        const isFull = room.count >= room.max;
+        const btnStyle = isFull ? 'background:#64748b; cursor:not-allowed;' : 'background:#22c55e;';
+
+        tr.innerHTML = `
+            <td style="padding: 10px; font-weight: bold;">${room.name}</td>
+            <td style="padding: 10px;">${room.count} / ${room.max}</td>
+            <td style="padding: 10px; text-align: right;">
+                <button 
+                    style="padding: 6px 14px; border: none; border-radius: 4px; color: white; font-weight: bold; ${btnStyle}" 
+                    ${isFull ? 'disabled' : ''} 
+                    onclick="joinRoom('${room.id}')">
+                    ${isFull ? 'PEŁNY' : 'DOŁĄCZ'}
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function createRoom() {
+    const nameInput = document.getElementById('new-room-name').value.trim();
+    const roomName = nameInput !== '' ? nameInput : 'Pokój ' + Math.floor(Math.random() * 1000);
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) return alert("Brak połączenia z serwerem!");
+    ws.send(JSON.stringify({ type: 'createRoom', roomName: roomName }));
+}
+
+function joinRoom(roomId) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return alert("Brak połączenia z serwerem!");
+    ws.send(JSON.stringify({ type: 'joinRoom', roomId: roomId }));
+}
+
+// --- LOGIKA WEBRTC ---
+function initPeerConnection(targetId, isInitiator) {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    peerConnections[targetId] = pc;
+
+    if (isInitiator) {
+        const dc = pc.createDataChannel("gameData");
+        setupDataChannel(dc, targetId);
+        pc.createOffer().then(o => { pc.setLocalDescription(o); ws.send(JSON.stringify({ type: 'signal', targetId, signalData: o })); });
+    } else {
+        pc.ondatachannel = (e) => setupDataChannel(e.channel, targetId);
+    }
+
+    pc.onicecandidate = (e) => {
+        if (e.candidate) ws.send(JSON.stringify({ type: 'signal', targetId, signalData: { candidate: e.candidate } }));
+    };
+}
+
+function handleSignalData(senderId, signalData) {
+    if (!peerConnections[senderId]) initPeerConnection(senderId, false);
+    const pc = peerConnections[senderId];
+
+    if (signalData.candidate) pc.addIceCandidate(new RTCIceCandidate(signalData.candidate));
+    else if (signalData.sdp) {
+        pc.setRemoteDescription(new RTCSessionDescription(signalData)).then(() => {
+            if (signalData.type === 'offer') {
+                pc.createAnswer().then(a => { pc.setLocalDescription(a); ws.send(JSON.stringify({ type: 'signal', targetId: senderId, signalData: a })); });
+            }
+        });
+    }
+}
+
+function setupDataChannel(channel, targetId) {
+    channel.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'move') {
+            updateRemotePlayer(targetId, data);
+        } else if (data.type === 'shoot') {
+            fireRemote(targetId);
+        }
+    };
+    peerConnections[targetId].dataChannel = channel;
+}
+
+function updateRemotePlayer(clientId, data) {
+    if (!remoteTanks[clientId]) {
+        spawnRemotePlayer(clientId);
+    }
+    const tank = remoteTanks[clientId];
+    tank.mesh.position.set(data.x, data.y, data.z);
+    tank.mesh.rotation.y = data.rotation;
+    tank.turretPivot.rotation.y = data.turretRotation;
+    tank.gunPivot.rotation.x = data.gunRotation;
+}
+
+function spawnRemotePlayer(clientId) {
+    const tank = createTank(0x10b981, false); // Zielony czołg obcego gracza
+    remoteTanks[clientId] = tank;
+}
+
+function removeRemotePlayer(clientId) {
+    if (remoteTanks[clientId]) {
+        SCENE.remove(remoteTanks[clientId].mesh);
+        delete remoteTanks[clientId];
+    }
+    if (peerConnections[clientId]) {
+        peerConnections[clientId].close();
+        delete peerConnections[clientId];
+    }
+}
+
+function sendMyPosition() {
+    const payload = JSON.stringify({
+        type: 'move',
+        x: playerTank.mesh.position.x,
+        y: playerTank.mesh.position.y,
+        z: playerTank.mesh.position.z,
+        rotation: playerTank.mesh.rotation.y,
+        turretRotation: playerTank.turretPivot.rotation.y,
+        gunRotation: playerTank.gunPivot.rotation.x
+    });
+
+    Object.keys(peerConnections).forEach(id => {
+        const pc = peerConnections[id];
+        if (pc.dataChannel && pc.dataChannel.readyState === 'open') {
+            pc.dataChannel.send(payload);
+        }
+    });
+}
+
+function sendMyShot() {
+    const payload = JSON.stringify({ type: 'shoot' });
+    Object.keys(peerConnections).forEach(id => {
+        const pc = peerConnections[id];
+        if (pc.dataChannel && pc.dataChannel.readyState === 'open') {
+            pc.dataChannel.send(payload);
+        }
+    });
+}
+
+// --- LOGIKA GRY ---
+function startGame(multiplayerMode = false) {
+    isMultiplayer = multiplayerMode;
+    mapType = document.getElementById('map-select').value;
+    document.getElementById('menu-overlay').style.display = 'none';
+    document.getElementById('death-overlay').style.display = 'none';
+    document.getElementById('pause-overlay').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'block';
+    
+    if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+    }
+
+    resetWorld();
+    initEngine();
+    buildSky();
+    buildMap(mapType);
+    spawnPlayer();
+    
+    if (!isMultiplayer) {
+        spawnBots(10);
+    } else {
+        document.getElementById('bot-count').innerText = "Wielu Graczy (P2P)";
+    }
+    
+    gameActive = true;
+    isPaused = false;
+    destroyedBotsCount = 0;
+    document.getElementById('player-hp').innerText = `3 / 3`;
+    document.getElementById('player-hp').style.color = `#22c55e`;
+    
+    lastTime = performance.now();
+    animate(performance.now());
+}
+
+function restartGame() {
+    startGame(isMultiplayer);
+}
+
+function resetWorld() {
+    if (RENDERER) RENDERER.domElement.remove();
+    bots = [];
+    bullets = [];
+    obstacleBoxes = [];
+    collidableMeshes = [];
+    shootableTargets = [];
+    Object.keys(remoteTanks).forEach(id => delete remoteTanks[id]);
+}
+
+function exitToMainMenu() {
+    gameActive = false; isPaused = false;
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    resetWorld();
+    
+    // Zamknięcie połączeń sieciowych
+    Object.keys(peerConnections).forEach(id => {
+        peerConnections[id].close();
+        delete peerConnections[id];
+    });
+    if (ws) {
+        ws.close();
+        ws = null;
+    }
+
+    document.getElementById('pause-overlay').style.display = 'none';
+    document.getElementById('death-overlay').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'none';
+    document.getElementById('menu-overlay').style.display = 'flex';
+}
+
+function resumeGame() {
+    isPaused = false;
+    document.getElementById('pause-overlay').style.display = 'none';
+}
+
+function initEngine() {
+    SCENE = new THREE.Scene();
+
+    CAMERA = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    RENDERER = new THREE.WebGLRenderer({ antialias: true });
+    RENDERER.setSize(window.innerWidth, window.innerHeight);
+    RENDERER.shadowMap.enabled = true;
+    RENDERER.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(RENDERER.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.7);
+    SCENE.add(ambientLight);
+
+    const sun = new THREE.DirectionalLight(0xfffbeb, 1.2);
+    sun.position.set(150, 200, 100);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+    const d = 400;
+    sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
+    sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
+    SCENE.add(sun);
+
+    window.addEventListener('mousemove', e => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        const crosshair = document.getElementById('crosshair');
+        crosshair.style.left = e.clientX + 'px';
+        crosshair.style.top = e.clientY + 'px';
+    }, { passive: true });
+
+    window.addEventListener('mousedown', e => { 
+        if (e.button === 0 && gameActive && !isPaused) fire(playerTank); 
+    });
+    
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && gameActive) {
+            isPaused = !isPaused;
+            document.getElementById('pause-overlay').style.display = isPaused ? 'flex' : 'none';
+        }
+        keys[e.key.toLowerCase()] = true;
+    });
+    window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+}
+
+function buildSky() {
+    const skyGeo = new THREE.SphereGeometry(600, 32, 15);
+    const skyMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.BackSide });
+    SCENE.add(new THREE.Mesh(skyGeo, skyMat));
+}
+
+function getTerrainHeight(x, z) {
+    if (mapType === 'mountains') {
+        return Math.sin(x * 0.01) * Math.cos(z * 0.01) * 35 + Math.sin(x * 0.025) * 12;
+    } else if (mapType === 'desert') {
+        return Math.sin(x * 0.008 + z * 0.008) * 20 + Math.cos(x * 0.02) * 6;
+    }
+    return Math.sin(x * 0.015) * Math.cos(z * 0.015) * 3 + Math.sin(x * 0.03) * 1.5;
+}
+
+function buildMap(type) {
+    let groundColor = 0x354522;
+    if (type === 'city') groundColor = 0x1e293b;
+    if (type === 'desert') groundColor = 0xd97706;
+
+    const groundGeo = new THREE.PlaneGeometry(800, 800, 140, 140);
+    groundGeo.rotateX(-Math.PI / 2);
+
+    const pos = groundGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        pos.setY(i, getTerrainHeight(x, z));
+    }
+    groundGeo.computeVertexNormals();
+
+    const groundMat = new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.9, flatShading: true });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.receiveShadow = true;
+    SCENE.add(groundMesh);
+    collidableMeshes.push(groundMesh);
+
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
+    const mapSize = 800, wallH = 50, wallT = 10;
+    const wallDefs = [
+        { size: [mapSize, wallH, wallT], pos: [0, wallH/2, -mapSize/2] },
+        { size: [mapSize, wallH, wallT], pos: [0, wallH/2, mapSize/2] },
+        { size: [wallT, wallH, mapSize], pos: [mapSize/2, wallH/2, 0] },
+        { size: [wallT, wallH, mapSize], pos: [-mapSize/2, wallH/2, 0] }
+    ];
+
+    wallDefs.forEach(def => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(...def.size), wallMat);
+        wall.position.set(...def.pos);
+        SCENE.add(wall);
+        collidableMeshes.push(wall);
+        wall.updateMatrixWorld(true);
+        obstacleBoxes.push(new THREE.Box3().setFromObject(wall));
+    });
+
+    if (type === 'city') {
+        const buildingMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+        const windowMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.1, metalness: 0.8, emissive: 0x1e293b });
+
+        for (let x = -300; x <= 300; x += 100) {
+            for (let z = -300; z <= 300; z += 100) {
+                if (Math.abs(x) < 70 && Math.abs(z) < 70) continue;
+                
+                const h = 35 + Math.random() * 25;
+                const bY = getTerrainHeight(x, z);
+                const bMesh = new THREE.Mesh(new THREE.BoxGeometry(45, h, 45), buildingMat);
+                bMesh.position.set(x, bY + h/2, z);
+                bMesh.castShadow = true; bMesh.receiveShadow = true;
+                
+                for (let floor = 4; floor < h - 4; floor += 7) {
+                    for (let windowX = -16; windowX <= 16; windowX += 10) {
+                        const winFront = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.4), windowMat);
+                        winFront.position.set(windowX, floor - h/2, 22.6);
+                        bMesh.add(winFront);
+
+                        const winBack = winFront.clone();
+                        winBack.position.z = -22.6;
+                        bMesh.add(winBack);
+                    }
+                }
+
+                SCENE.add(bMesh);
+                collidableMeshes.push(bMesh);
+                bMesh.updateMatrixWorld(true);
+                obstacleBoxes.push(new THREE.Box3().setFromObject(bMesh));
+            }
+        }
+    }
+}
+
+function createTank(colorHex, isBot = false) {
+    const group = new THREE.Group();
+    const armorMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4, metalness: 0.5 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+    const trackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 5.2), armorMat);
+    body.position.y = 1.1; body.castShadow = true;
+    body.name = "body";
+    group.add(body);
+
+    const trackGeo = new THREE.BoxGeometry(0.6, 0.9, 5.4);
+    const trackL = new THREE.Mesh(trackGeo, trackMat);
+    trackL.position.set(-1.7, 0.55, 0);
+    trackL.castShadow = true;
+    const trackR = trackL.clone();
+    trackR.position.x = 1.7;
+    group.add(trackL, trackR);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.7, 12);
+    wheelGeo.rotateZ(Math.PI / 2);
+    for(let z = -2.1; z <= 2.1; z += 1.05) {
+        const wL = new THREE.Mesh(wheelGeo, darkMat);
+        wL.position.set(-1.7, 0.4, z);
+        const wR = wL.clone();
+        wR.position.x = 1.7;
+        group.add(wL, wR);
+    }
+
+    const turretPivot = new THREE.Group();
+    turretPivot.position.set(0, 1.6, -0.2);
+    group.add(turretPivot);
+
+    const turret = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.85, 2.8), armorMat);
+    turret.position.set(0, 0.425, 0); turret.castShadow = true;
+    turret.name = "turret";
+    turretPivot.add(turret);
+
+    const gunPivot = new THREE.Group();
+    gunPivot.position.set(0, 0.45, 1.3);
+    turretPivot.add(gunPivot);
+
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 16).rotateX(Math.PI/2).translate(0,0,2.1), darkMat);
+    gunPivot.add(barrel);
+
+    SCENE.add(group);
+
+    const tankObj = {
+        mesh: group,
+        turretPivot: turretPivot,
+        gunPivot: gunPivot,
+        barrel: barrel,
+        isBot: isBot,
+        reloadTime: 0,
+        isDestroyed: false,
+        hp: 3,
+        lastBotShoot: 0,
+        bodyArmor: 250,
+        turretArmor: 100,
+        penetrationPower: 120
+    };
+
+    shootableTargets.push({ tank: tankObj, meshes: [body, turret] });
+    return tankObj;
+}
+
+function checkObstacleCollision(pos, radius = 3.5) {
+    const tankBox = new THREE.Box3().setFromCenterAndSize(pos, new THREE.Vector3(radius*2, 4, radius*2));
+    for (let i = 0; i < obstacleBoxes.length; i++) {
+        if (obstacleBoxes[i].intersectsBox(tankBox)) return true;
+    }
+    return false;
+}
+
+function checkTankCollisions(currentTank, newPos) {
+    if (currentTank !== playerTank && !playerTank.isDestroyed) {
+        if (newPos.distanceTo(playerTank.mesh.position) < TANK_RADIUS) return true;
+    }
+
+    for (let other of bots) {
+        if (other !== currentTank && !other.isDestroyed) {
+            if (newPos.distanceTo(other.mesh.position) < TANK_RADIUS) return true;
+        }
+    }
+    return false;
+}
+
+function spawnPlayer() {
+    playerTank = createTank(0x2563eb);
+    let valid = false;
+    let x = 0, z = 200, y = 0;
+
+    while (!valid) {
+        y = getTerrainHeight(x, z);
+        const p = new THREE.Vector3(x, y, z);
+        if (!checkObstacleCollision(p, 6.0)) {
+            valid = true;
+        } else {
+            z += 10;
+        }
+    }
+    playerTank.mesh.position.set(x, y, z);
+}
+
+function spawnBots(count) {
+    for (let i = 0; i < count; i++) {
+        const bot = createTank(0xd97706, true);
+        let validPos = false;
+        let x = 0, z = 0, y = 0;
+
+        while (!validPos) {
+            x = (Math.random() - 0.5) * 500;
+            z = -200 - Math.random() * 150;
+            
+            y = getTerrainHeight(x, z);
+            const candidatePos = new THREE.Vector3(x, y, z);
+
+            if (!checkObstacleCollision(candidatePos, 6.5)) {
+                validPos = true;
+            }
+        }
+
+        bot.mesh.position.set(x, y, z);
+        bots.push(bot);
+    }
+}
+
+function fire(tank) {
+    if (tank.reloadTime > 0 || tank.isDestroyed) return;
+    tank.reloadTime = 2000;
+
+    const bullet = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18),
+        new THREE.MeshBasicMaterial({ color: tank.isBot ? 0xef4444 : 0x60a5fa })
+    );
+
+    const muzzlePos = new THREE.Vector3();
+    tank.barrel.getWorldPosition(muzzlePos);
+
+    const dir = new THREE.Vector3();
+    tank.gunPivot.getWorldDirection(dir);
+
+    if (tank.isBot) {
+        const inaccuracy = 0.12;
+        dir.x += (Math.random() - 0.5) * inaccuracy;
+        dir.y += (Math.random() - 0.5) * (inaccuracy * 0.5);
+        dir.z += (Math.random() - 0.5) * inaccuracy;
+        dir.normalize();
+    }
+
+    muzzlePos.add(dir.clone().multiplyScalar(1.5));
+    bullet.position.copy(muzzlePos);
+
+    bullets.push({
+        mesh: bullet,
+        velocity: dir.multiplyScalar(3.2),
+        owner: tank,
+        life: 180,
+        penetration: tank.penetrationPower
+    });
+
+    SCENE.add(bullet);
+
+    // WYŚLIJ INFORMACJĘ O STRZALE DO INNYCH GRACZY
+    if (isMultiplayer && tank === playerTank) {
+        sendMyShot();
+    }
+}
+
+// STRZELANIE OD INNEGO GRACZA
+function fireRemote(clientId) {
+    const tank = remoteTanks[clientId];
+    if (!tank || tank.isDestroyed) return;
+
+    const bullet = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18),
+        new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+
+    const muzzlePos = new THREE.Vector3();
+    tank.barrel.getWorldPosition(muzzlePos);
+
+    const dir = new THREE.Vector3();
+    tank.gunPivot.getWorldDirection(dir);
+
+    muzzlePos.add(dir.clone().multiplyScalar(1.5));
+    bullet.position.copy(muzzlePos);
+
+    bullets.push({
+        mesh: bullet,
+        velocity: dir.multiplyScalar(3.2),
+        owner: tank,
+        life: 180,
+        penetration: tank.penetrationPower
+    });
+
+    SCENE.add(bullet);
+}
+
+let lastTime = performance.now();
+
+function animate(currentTime) {
+    if (!gameActive) return;
+    animFrameId = requestAnimationFrame(animate);
+
+    if (isPaused) return;
+
+    const delta = currentTime - lastTime;
+    lastTime = currentTime;
+
+    if (playerTank.reloadTime > 0) {
+        playerTank.reloadTime -= delta;
+        const progress = Math.max(0, 1 - (playerTank.reloadTime / 2000));
+        document.getElementById('reload-bar').style.width = `${progress * 100}%`;
+    }
+
+    // STEROWANIE GRACZA LOKALNEGO
+    if (!playerTank.isDestroyed) {
+        const oldPos = playerTank.mesh.position.clone();
+
+        if (keys['w']) playerTank.mesh.translateZ(TANK_SPEED);
+        if (keys['s']) playerTank.mesh.translateZ(-TANK_SPEED * 0.5);
+        if (keys['a']) playerTank.mesh.rotation.y += TANK_ROTATE_SPEED;
+        if (keys['d']) playerTank.mesh.rotation.y -= TANK_ROTATE_SPEED;
+
+        playerTank.mesh.position.y = getTerrainHeight(playerTank.mesh.position.x, playerTank.mesh.position.z);
+
+        if (checkObstacleCollision(playerTank.mesh.position, 3.2) || checkTankCollisions(playerTank, playerTank.mesh.position)) {
+            playerTank.mesh.position.copy(oldPos);
+        }
+
+        playerTank.mesh.position.x = THREE.MathUtils.clamp(playerTank.mesh.position.x, -390, 390);
+        playerTank.mesh.position.z = THREE.MathUtils.clamp(playerTank.mesh.position.z, -390, 390);
+
+        raycaster.setFromCamera(mouse, CAMERA);
+        const intersects = raycaster.intersectObjects(collidableMeshes);
+
+        if (intersects.length > 0) {
+            const targetPoint = intersects[0].point;
+            const localTarget = playerTank.mesh.worldToLocal(targetPoint.clone());
+            const targetTurretAngle = Math.atan2(localTarget.x, localTarget.z);
+            playerTank.turretPivot.rotation.y = THREE.MathUtils.lerp(playerTank.turretPivot.rotation.y, targetTurretAngle, 0.15);
+
+            const dist = Math.sqrt(localTarget.x * localTarget.x + localTarget.z * localTarget.z);
+            const targetGunAngle = Math.atan2(localTarget.y - 1.8, dist);
+            playerTank.gunPivot.rotation.x = THREE.MathUtils.lerp(playerTank.gunPivot.rotation.x, THREE.MathUtils.clamp(-targetGunAngle, -0.1, 0.35), 0.15);
+        }
+
+        const camOffset = new THREE.Vector3(0, 5, -12).applyMatrix4(playerTank.mesh.matrixWorld);
+        CAMERA.position.lerp(camOffset, 0.1);
+        CAMERA.lookAt(playerTank.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0)));
+
+        // WYSYŁANIE TRANSFORMACJI W TRYBIE MULTIPLAYER
+        if (isMultiplayer) {
+            sendMyPosition();
+        }
+    }
+
+    // BOTY LOGIKA (TYLKO DLA TRYBU SINGLE PLAYER)
+    if (!isMultiplayer) {
+        let activeBots = 0;
+        bots.forEach(bot => {
+            if (bot.isDestroyed) return;
+            activeBots++;
+
+            if (bot.reloadTime > 0) bot.reloadTime -= delta;
+
+            if (!playerTank.isDestroyed) {
+                const botPos = bot.mesh.position;
+                const playerPos = playerTank.mesh.position;
+                const distToPlayer = botPos.distanceTo(playerPos);
+
+                if (distToPlayer > 35) {
+                    const oldBotPos = botPos.clone();
+                    bot.mesh.lookAt(playerPos.x, botPos.y, playerPos.z);
+                    bot.mesh.translateZ(TANK_SPEED * 0.45);
+                    
+                    bot.mesh.position.y = getTerrainHeight(bot.mesh.position.x, bot.mesh.position.z);
+
+                    if (checkObstacleCollision(bot.mesh.position, 3.2) || checkTankCollisions(bot, bot.mesh.position)) {
+                        bot.mesh.position.copy(oldBotPos);
+                    }
+                }
+
+                const targetVector = playerPos.clone().add(new THREE.Vector3(
+                    (Math.sin(currentTime * 0.002) * 5), 
+                    1.2, 
+                    (Math.cos(currentTime * 0.002) * 5)
+                ));
+                bot.turretPivot.lookAt(targetVector);
+
+                if (currentTime - bot.lastBotShoot > 3200 && distToPlayer < 250) {
+                    fire(bot);
+                    bot.lastBotShoot = currentTime;
+                }
+            }
+        });
+        const t = translations[currentLang];
+        document.getElementById('bot-count').innerText = `${t.botCount}: ${activeBots}/${bots.length}`;
+    } else {
+        const t = translations[currentLang];
+        document.getElementById('bot-count').innerText = `${t.players}: ${Object.keys(remoteTanks).length + 1} / 20`;
+    }
+
+    // POCISKI I TRAFIENIA
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.mesh.position.add(b.velocity);
+        b.life--;
+
+        const bulletRay = new THREE.Raycaster(b.mesh.position, b.velocity.clone().normalize(), 0, b.velocity.length());
+
+        const environmentHits = bulletRay.intersectObjects(collidableMeshes);
+        if (environmentHits.length > 0 && environmentHits[0].distance < b.velocity.length()) {
+            if (b.owner === playerTank) {
+                const t = translations[currentLang];
+                document.getElementById('xray-info').innerHTML = `<b style='color:#ef4444'>${t.hitBuilding}</b>`;
+            }
+            SCENE.remove(b.mesh);
+            bullets.splice(i, 1);
+            continue;
+        }
+
+        shootableTargets.forEach(targetObj => {
+            const target = targetObj.tank;
+            if (target.isDestroyed || target === b.owner) return;
+
+            const hits = bulletRay.intersectObjects(targetObj.meshes);
+
+            if (hits.length > 0) {
+                const hit = hits[0];
+                const isTurret = hit.object.name === "turret";
+                const armorValue = isTurret ? target.turretArmor : target.bodyArmor;
+
+                const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+                const impactAngle = normal.angleTo(b.velocity.clone().negate());
+                const effectiveArmor = Math.round(armorValue / Math.max(0.2, Math.abs(Math.cos(impactAngle))));
+                const xrayEl = document.getElementById('xray-info');
+                const t = translations[currentLang];
+
+                if (b.penetration < effectiveArmor) {
+                    if (b.owner === playerTank) {
+                        xrayEl.innerHTML = `<b style='color:#38bdf8'>${t.noPen}</b><br>Hit: ${isTurret ? t.turret : t.hull} (250mm)`;
+                    } else if (target === playerTank) {
+                        xrayEl.innerHTML = `<b style='color:#22c55e'>${t.ricochet}</b>`;
+                    }
+                } else {
+                    target.hp -= 1;
+
+                    if (b.owner === playerTank) {
+                        xrayEl.innerHTML = `<b style='color:#ef4444'>${t.pen}</b><br>HP: ${target.hp}/3`;
+                    } else if (target === playerTank) {
+                        const hpEl = document.getElementById('player-hp');
+                        hpEl.innerText = `${target.hp} / 3`;
+                        hpEl.style.color = target.hp === 2 ? '#f59e0b' : '#ef4444';
+                        xrayEl.innerHTML = `<b style='color:#ef4444'>${t.turretHit}</b>`;
+                    }
+
+                    if (target.hp <= 0) {
+                        target.isDestroyed = true;
+                        target.mesh.traverse(c => { 
+                            if(c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 }); 
+                        });
+                        
+                        if (b.owner === playerTank) {
+                            destroyedBotsCount++;
+                        } else if (target === playerTank) {
+                            setTimeout(() => {
+                                document.getElementById('death-stats').innerText = `${t.botCount}: ${destroyedBotsCount}`;
+                                document.getElementById('death-overlay').style.display = 'flex';
+                            }, 400);
+                        }
+                    }
+                }
+
+                SCENE.remove(b.mesh);
+                bullets.splice(i, 1);
+            }
+        });
+
+        if (b.life <= 0 || b.mesh.position.y < getTerrainHeight(b.mesh.position.x, b.mesh.position.z)) {
+            SCENE.remove(b.mesh);
+            bullets.splice(i, 1);
+        }
+    }
+
+    RENDERER.render(SCENE, CAMERA);
+}
+
+window.addEventListener('resize', () => {
+    if (!CAMERA || !RENDERER) return;
+    CAMERA.aspect = window.innerWidth / window.innerHeight;
+    CAMERA.updateProjectionMatrix();
+    RENDERER.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
