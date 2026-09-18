@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>War Thunder Web - MULTIPLAYER 20os</title>
+    <title>War Thunder Web - MULTIPLAYER TEAMS (OPTIMIZED 60HZ)</title>
     <style>
         body { margin: 0; overflow: hidden; background: #0f172a; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -55,7 +55,6 @@
             color: #e2e8f0; padding: 12px; font-size: 13px; border-radius: 8px;
         }
 
-        /* --- STYL DLA KILL FEED I TABLICY WYNIKÓW --- */
         #kill-feed {
             position: absolute; top: 15px; right: 15px; width: 280px;
             display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
@@ -74,19 +73,30 @@
 
         #scoreboard {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 450px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155;
+            width: 500px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155;
             border-radius: 8px; color: #fff; padding: 20px; display: none; z-index: 90;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
         #scoreboard table { width: 100%; border-collapse: collapse; text-align: left; }
         #scoreboard th { border-bottom: 2px solid #f59e0b; color: #f59e0b; padding: 8px; }
         #scoreboard td { padding: 8px; border-bottom: 1px solid #334155; }
+        
+        #shield-indicator {
+            color: #38bdf8; font-weight: bold; display: none; margin-top: 4px;
+        }
+
+        .team-btn {
+            flex: 1; padding: 15px; border: none; font-size: 16px; font-weight: bold;
+            border-radius: 8px; cursor: pointer; transition: all 0.2s; color: white;
+        }
+        .team-btn:disabled {
+            background: #475569 !important; opacity: 0.4; cursor: not-allowed; transform: none !important;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-<!-- MENU GŁÓWNE -->
 <div id="menu-overlay" class="modal-overlay">
     <div class="modal-card">
         <h1>WAR THUNDER WEB</h1>
@@ -94,7 +104,7 @@
         
         <label id="lbl-map" style="color:#e2e8f0; display:block; margin-bottom:5px; text-align:left; margin-left:7.5%;">Wybór Mapy:</label>
         <select id="map-select">
-            <option value="city" id="opt-city">Miasto (Budynki z oknami)</option>
+            <option value="city" id="opt-city">Miasto (Zoptymalizowane)</option>
             <option value="mountains" id="opt-mountains">Góry (Wysokie Szczyty)</option>
             <option value="desert" id="opt-desert">Pustynia (Ogromne Wydmy)</option>
         </select>
@@ -105,7 +115,6 @@
     </div>
 </div>
 
-<!-- LOBBY / LISTA POKOI MULTIPLAYER -->
 <div id="room-menu" class="modal-overlay" style="display: none;">
     <div class="modal-card" style="max-width: 650px;">
         <h1 id="txt-lobby-title">LISTA POKOI MULTIPLAYER</h1>
@@ -138,7 +147,24 @@
     </div>
 </div>
 
-<!-- MENU OPCJI -->
+<div id="team-select-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <h1>WYBIERZ DRUŻYNĘ</h1>
+        <p style="color: #94a3b8; font-size: 14px;">Różnica liczby graczy między drużynami nie może przekraczać 1 osoby.</p>
+        
+        <div style="display: flex; gap: 15px; margin: 25px 0;">
+            <button id="btn-team-blue" class="team-btn" style="background: #2563eb;" onclick="confirmTeam('blue')">
+                🔵 NIEBIESCY<br><span id="cnt-blue" style="font-size:12px; opacity:0.8;">(0 graczy)</span>
+            </button>
+            <button id="btn-team-red" class="team-btn" style="background: #ef4444;" onclick="confirmTeam('red')">
+                🔴 CZERWONI<br><span id="cnt-red" style="font-size:12px; opacity:0.8;">(0 graczy)</span>
+            </button>
+        </div>
+
+        <button class="btn btn-secondary" onclick="closeTeamSelect()">ANULUJ</button>
+    </div>
+</div>
+
 <div id="options-overlay" class="modal-overlay" style="display: none;">
     <div class="modal-card">
         <h1 id="txt-opt-title">OPCJE</h1>
@@ -151,7 +177,6 @@
     </div>
 </div>
 
-<!-- MENU PAUZY -->
 <div id="pause-overlay" class="modal-overlay" style="display: none;">
     <div class="modal-card">
         <h1 id="txt-pause">PAUZA</h1>
@@ -160,7 +185,6 @@
     </div>
 </div>
 
-<!-- MENU ŚMIERCI -->
 <div id="death-overlay" class="modal-overlay" style="display: none;">
     <div class="modal-card">
         <h1 id="txt-death-title" style="color: #ef4444;">TWÓJ CZOŁG ZOSTAŁ ZNISZCZONY</h1>
@@ -170,11 +194,11 @@
     </div>
 </div>
 
-<!-- HUD -->
 <div id="game-ui">
     <div id="ui">
         <h2 id="txt-player-title" style="color:#3b82f6; margin:0; font-size:16px;">GRACZ (TY)</h2>
         <p><span id="lbl-hp">HP Gracza</span>: <b id="player-hp" style="color:#22c55e">3 / 3</b></p>
+        <div id="shield-indicator">🛡️ OCHRONA: <span id="shield-timer">10</span>s</div>
         <p><span id="lbl-gun">Działo</span>: <b>120 mm</b> | <span id="lbl-hull">Kadłub</span>: <b>250 mm</b> | <span id="lbl-turret">Wieża</span>: <b>100 mm</b></p>
         <p id="bot-count" style="color:#ef4444; font-weight:bold;">Wrogowie: 10/10</p>
         <div id="reload-bar-container"><div id="reload-bar"></div></div>
@@ -186,15 +210,14 @@
         <span id="xray-info">Celuj w wieżę wrogów! Pokonaj ich. Przytrzymaj TAB dla wyników.</span>
     </div>
     
-    <!-- POWIADOMIENIA O ZABÓJSTWACH (KILL FEED) -->
     <div id="kill-feed"></div>
 
-    <!-- TABLICA WYNIKÓW (SCOREBOARD - PRZYTRZYMAJ TAB) -->
     <div id="scoreboard">
         <h3 style="margin:0 0 10px 0; color:#f59e0b; text-align:center;">TABELA WYNIKÓW (TAB)</h3>
         <table>
             <thead>
                 <tr>
+                    <th>DRUŻYNA</th>
                     <th>GRACZ</th>
                     <th>ZABÓJSTWA</th>
                     <th>STATUS</th>
@@ -206,12 +229,11 @@
 </div>
 
 <script>
-// --- TŁUMACZENIA ---
 let currentLang = 'pl';
 const translations = {
     pl: {
         sub: "Wybierz tryb rozgrywki i mapę", mapLbl: "Wybór Mapy:",
-        optCity: "Miasto (Budynki z oknami)", optMountains: "Góry (Wysokie Szczyty)", optDesert: "Pustynia (Ogromne Wydmy)",
+        optCity: "Miasto (Zoptymalizowane)", optMountains: "Góry (Wysokie Szczyty)", optDesert: "Pustynia (Ogromne Wydmy)",
         btnStart: "SINGLE PLAYER (10 BOTÓW)", btnOpt: "OPCJE / OPTIONS", optTitle: "OPCJE", langLbl: "Język / Language:",
         btnBack: "POWRÓT", pause: "PAUZA", resume: "WZNÓW GRĘ", exit: "WYJDŹ DO MENU",
         deathTitle: "TWÓJ CZOŁG ZOSTAŁ ZNISZCZONY", restart: "ZAGRAJ PONOWNIE", playerTitle: "GRACZ (TY)",
@@ -222,7 +244,7 @@ const translations = {
     },
     en: {
         sub: "Select game mode and map", mapLbl: "Select Map:",
-        optCity: "City (Buildings with windows)", optMountains: "Mountains (High Peaks)", optDesert: "Desert (Huge Dunes)",
+        optCity: "City (Optimized)", optMountains: "Mountains (High Peaks)", optDesert: "Desert (Huge Dunes)",
         btnStart: "SINGLE PLAYER (10 BOTS)", btnOpt: "OPTIONS", optTitle: "OPTIONS", langLbl: "Language:",
         btnBack: "BACK", pause: "PAUSE", resume: "RESUME GAME", exit: "EXIT TO MENU",
         deathTitle: "YOUR TANK WAS DESTROYED", restart: "PLAY AGAIN", playerTitle: "PLAYER (YOU)",
@@ -265,14 +287,14 @@ function changeLanguage(lang) {
 function openOptions() { document.getElementById('options-overlay').style.display = 'flex'; }
 function closeOptions() { document.getElementById('options-overlay').style.display = 'none'; }
 
-// --- ADRES SERWERA W CHMURZE (LINIA 215) ---
-const SIGNAL_SERVER = "wss://war-thunder-multiplayer.onrender.com"; 
+const SIGNAL_SERVER = "wss://war-thunder-multiplayer.onrender.com/"; 
 
 let ws;
 let isMultiplayer = false;
 let isHost = false;
 let myClientId = null;
 let activeRoomId = null;
+let myTeam = 'blue'; 
 const peerConnections = {}; 
 const remoteTanks = {}; 
 
@@ -283,6 +305,7 @@ let bullets = [];
 let obstacleBoxes = []; 
 let collidableMeshes = [];
 let shootableTargets = [];
+let groundMesh = null;
 let mapType = 'city';
 const keys = {};
 const mouse = new THREE.Vector2();
@@ -292,10 +315,15 @@ let gameActive = false;
 let isPaused = false;
 let myKills = 0;
 let animFrameId = null;
+let lastNetworkSend = 0;
 
-const TANK_SPEED = 0.3;
-const TANK_ROTATE_SPEED = 0.025;
+// PREDKOSCI SKALOWANE W CZASIE (Dla płynnego 60 FPS)
+const TANK_SPEED = 18.0; 
+const TANK_ROTATE_SPEED = 1.5;
 const TANK_RADIUS = 3.2;
+
+const SPAWN_BLUE = new THREE.Vector3(0, 0, -350);
+const SPAWN_RED = new THREE.Vector3(0, 0, 350);
 
 function openMultiplayerMenu() {
     document.getElementById('room-menu').style.display = 'flex';
@@ -306,6 +334,42 @@ function openMultiplayerMenu() {
 
 function closeMultiplayerMenu() {
     document.getElementById('room-menu').style.display = 'none';
+}
+
+function openTeamSelect() {
+    document.getElementById('room-menu').style.display = 'none';
+    document.getElementById('team-select-overlay').style.display = 'flex';
+    updateTeamSelectionButtons();
+}
+
+function closeTeamSelect() {
+    document.getElementById('team-select-overlay').style.display = 'none';
+    document.getElementById('room-menu').style.display = 'flex';
+}
+
+function updateTeamSelectionButtons() {
+    let blueCount = 0;
+    let redCount = 0;
+
+    Object.values(remoteTanks).forEach(t => {
+        if (t.team === 'blue') blueCount++;
+        if (t.team === 'red') redCount++;
+    });
+
+    document.getElementById('cnt-blue').innerText = `(${blueCount} graczy)`;
+    document.getElementById('cnt-red').innerText = `(${redCount} graczy)`;
+
+    const btnBlue = document.getElementById('btn-team-blue');
+    const btnRed = document.getElementById('btn-team-red');
+
+    btnBlue.disabled = (blueCount - redCount >= 1);
+    btnRed.disabled = (redCount - blueCount >= 1);
+}
+
+function confirmTeam(selectedTeam) {
+    myTeam = selectedTeam;
+    document.getElementById('team-select-overlay').style.display = 'none';
+    startGame(true);
 }
 
 function connectToCloud() {
@@ -323,8 +387,7 @@ function connectToCloud() {
             isMultiplayer = true;
             myClientId = data.clientId;
             activeRoomId = data.roomId;
-            closeMultiplayerMenu();
-            startGame(true); 
+            openTeamSelect();
         }
 
         if (data.type === 'roomJoined') {
@@ -332,8 +395,7 @@ function connectToCloud() {
             isMultiplayer = true;
             myClientId = data.clientId;
             activeRoomId = data.roomId;
-            closeMultiplayerMenu();
-            startGame(true);
+            openTeamSelect();
         }
 
         if (data.type === 'playerJoinedRoom' && isHost) {
@@ -404,7 +466,6 @@ function joinRoom(roomId) {
     ws.send(JSON.stringify({ type: 'joinRoom', roomId: roomId }));
 }
 
-// --- WEBRTC SIECIOWE ---
 function initPeerConnection(targetId, isInitiator) {
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     peerConnections[targetId] = pc;
@@ -436,7 +497,6 @@ function handleSignalData(senderId, signalData) {
     }
 }
 
-// FULL ZSYNCHRONIZOWANE PRZEKAZYWANIE DANYCH
 function setupDataChannel(channel, targetId) {
     channel.onmessage = (e) => {
         const data = JSON.parse(e.data);
@@ -446,30 +506,14 @@ function setupDataChannel(channel, targetId) {
         } else if (data.type === 'shoot') {
             fireRemote(targetId);
         } else if (data.type === 'hit') {
-            if (!playerTank.isDestroyed) {
-                playerTank.hp -= data.damage;
-                
-                const hpEl = document.getElementById('player-hp');
-                hpEl.innerText = `${playerTank.hp} / 3`;
-                hpEl.style.color = playerTank.hp === 2 ? '#f59e0b' : '#ef4444';
-
-                if (playerTank.hp <= 0) {
-                    playerTank.isDestroyed = true;
-                    playerTank.mesh.traverse(c => { 
-                        if(c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 }); 
-                    });
-                    
-                    addKillFeedMsg(`${targetId} 💥 ${myClientId || 'Ty'}`);
-
-                    setTimeout(() => {
-                        document.getElementById('death-stats').innerText = `Zabójstwa: ${myKills}`;
-                        document.getElementById('death-overlay').style.display = 'flex';
-                    }, 400);
-                }
+            if (!playerTank.isDestroyed && !playerTank.isProtected) {
+                applyDamageToPlayer(data.damage, targetId);
             }
         } else if (data.type === 'respawn') {
             if (remoteTanks[targetId]) {
-                resetTank(remoteTanks[targetId], 0x10b981);
+                const color = remoteTanks[targetId].team === 'blue' ? 0x2563eb : 0xef4444;
+                resetTank(remoteTanks[targetId], color);
+                activateShield(remoteTanks[targetId]);
             }
         } else if (data.type === 'killBroadcast') {
             addKillFeedMsg(`${data.killer} 💥 ${data.victim}`);
@@ -483,18 +527,21 @@ function setupDataChannel(channel, targetId) {
 
 function updateRemotePlayer(clientId, data) {
     if (!remoteTanks[clientId]) {
-        spawnRemotePlayer(clientId);
+        spawnRemotePlayer(clientId, data.team);
     }
     const tank = remoteTanks[clientId];
+    tank.team = data.team;
     tank.mesh.position.set(data.x, data.y, data.z);
     tank.mesh.rotation.y = data.rotation;
     tank.turretPivot.rotation.y = data.turretRotation;
     tank.gunPivot.rotation.x = data.gunRotation;
 }
 
-function spawnRemotePlayer(clientId) {
-    const tank = createTank(0x10b981, false);
+function spawnRemotePlayer(clientId, team = 'blue') {
+    const colorHex = team === 'blue' ? 0x2563eb : 0xef4444;
+    const tank = createTank(colorHex, false);
     tank.clientId = clientId;
+    tank.team = team;
     tank.kills = 0;
     remoteTanks[clientId] = tank;
 }
@@ -513,6 +560,7 @@ function removeRemotePlayer(clientId) {
 function sendMyPosition() {
     const payload = JSON.stringify({
         type: 'move',
+        team: myTeam,
         x: playerTank.mesh.position.x,
         y: playerTank.mesh.position.y,
         z: playerTank.mesh.position.z,
@@ -539,7 +587,56 @@ function sendMyShot() {
     });
 }
 
-// --- LOGIKA RESETOWANIA CZOŁGU ---
+function activateShield(tank) {
+    tank.isProtected = true;
+    
+    if (tank === playerTank) {
+        const ind = document.getElementById('shield-indicator');
+        const timer = document.getElementById('shield-timer');
+        ind.style.display = 'block';
+        let timeLeft = 10;
+        timer.innerText = timeLeft;
+
+        if (tank.shieldInterval) clearInterval(tank.shieldInterval);
+        tank.shieldInterval = setInterval(() => {
+            timeLeft--;
+            timer.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(tank.shieldInterval);
+                tank.isProtected = false;
+                ind.style.display = 'none';
+            }
+        }, 1000);
+    } else {
+        setTimeout(() => {
+            tank.isProtected = false;
+        }, 10000);
+    }
+}
+
+function applyDamageToPlayer(damage, attackerName = "Bot") {
+    if (playerTank.isDestroyed || playerTank.isProtected) return;
+
+    playerTank.hp -= damage;
+    const hpEl = document.getElementById('player-hp');
+    hpEl.innerText = `${playerTank.hp} / 3`;
+    hpEl.style.color = playerTank.hp === 2 ? '#f59e0b' : '#ef4444';
+
+    if (playerTank.hp <= 0) {
+        playerTank.isDestroyed = true;
+        playerTank.mesh.traverse(c => { 
+            if(c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 }); 
+        });
+        
+        addKillFeedMsg(`${attackerName} 💥 ${myClientId || 'Ty'}`);
+
+        setTimeout(() => {
+            document.getElementById('death-stats').innerText = `Zabójstwa: ${myKills}`;
+            document.getElementById('death-overlay').style.display = 'flex';
+        }, 400);
+    }
+}
+
 function resetTank(tankObj, colorHex) {
     tankObj.isDestroyed = false;
     tankObj.hp = 3;
@@ -552,7 +649,6 @@ function resetTank(tankObj, colorHex) {
     });
 }
 
-// --- LOGIKA GRY ---
 function startGame(multiplayerMode = false) {
     isMultiplayer = multiplayerMode;
     mapType = document.getElementById('map-select').value;
@@ -571,16 +667,26 @@ function startGame(multiplayerMode = false) {
     buildSky();
     buildMap(mapType);
     
+    if (!isMultiplayer) myTeam = 'blue';
+
+    const playerColor = myTeam === 'blue' ? 0x2563eb : 0xef4444;
+
     if (playerTank) {
-        resetTank(playerTank, 0x2563eb);
+        resetTank(playerTank, playerColor);
     } else {
         spawnPlayer();
     }
+
+    playerTank.team = myTeam;
     
+    if (isMultiplayer) {
+        activateShield(playerTank);
+    }
+
     if (!isMultiplayer) {
         spawnBots(10);
     } else {
-        document.getElementById('bot-count').innerText = "Wielu Graczy (P2P)";
+        document.getElementById('bot-count').innerText = "Wielu Graczy (Drużyny)";
     }
     
     gameActive = true;
@@ -588,15 +694,45 @@ function startGame(multiplayerMode = false) {
     myKills = 0;
     document.getElementById('player-hp').innerText = `3 / 3`;
     document.getElementById('player-hp').style.color = `#22c55e`;
-    
+    document.getElementById('txt-player-title').innerText = `GRACZ (TY - ${myTeam === 'blue' ? 'NIEBIESCY' : 'CZERWONI'})`;
+    document.getElementById('txt-player-title').style.color = myTeam === 'blue' ? '#3b82f6' : '#ef4444';
+
     lastTime = performance.now();
     animate(performance.now());
 }
 
+function getSafeSpawnPosition(startPos) {
+    let pos = startPos.clone();
+    let radius = 0;
+    let angle = 0;
+    while (checkObstacleCollision(pos, 5.0)) {
+        radius += 4;
+        angle += 0.8;
+        pos.x = startPos.x + Math.cos(angle) * radius;
+        pos.z = startPos.z + Math.sin(angle) * radius;
+        pos.y = getTerrainHeight(pos.x, pos.z);
+    }
+    return pos;
+}
+
 function restartGame() {
     if (playerTank) {
-        resetTank(playerTank, 0x2563eb);
-        playerTank.mesh.position.set(0, getTerrainHeight(0, 200), 200);
+        const playerColor = myTeam === 'blue' ? 0x2563eb : 0xef4444;
+        resetTank(playerTank, playerColor);
+        
+        let targetSpawn;
+        if (isMultiplayer) {
+            targetSpawn = myTeam === 'blue' ? SPAWN_BLUE : SPAWN_RED;
+        } else {
+            targetSpawn = new THREE.Vector3(0, 0, 200);
+        }
+        
+        const safePos = getSafeSpawnPosition(targetSpawn);
+        playerTank.mesh.position.copy(safePos);
+
+        if (isMultiplayer) {
+            activateShield(playerTank);
+        }
     }
     
     if (isMultiplayer) {
@@ -619,6 +755,7 @@ function resetWorld() {
     obstacleBoxes = [];
     collidableMeshes = [];
     shootableTargets = [];
+    groundMesh = null;
 }
 
 function exitToMainMenu() {
@@ -650,8 +787,9 @@ function initEngine() {
     SCENE = new THREE.Scene();
 
     CAMERA = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    RENDERER = new THREE.WebGLRenderer({ antialias: true });
+    RENDERER = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     RENDERER.setSize(window.innerWidth, window.innerHeight);
+    RENDERER.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     RENDERER.shadowMap.enabled = true;
     RENDERER.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(RENDERER.domElement);
@@ -662,7 +800,8 @@ function initEngine() {
     const sun = new THREE.DirectionalLight(0xfffbeb, 1.2);
     sun.position.set(150, 200, 100);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+    sun.shadow.mapSize.width = 1024; 
+    sun.shadow.mapSize.height = 1024;
     const d = 400;
     sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
     sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
@@ -720,16 +859,25 @@ function showScoreboard(visible) {
     const tbody = document.getElementById('scoreboard-body');
     tbody.innerHTML = '';
 
-    // Mój wpis
     const myTr = document.createElement('tr');
-    myTr.innerHTML = `<td style="color:#3b82f6; font-weight:bold;">TY (${myClientId || 'Gracz'})</td><td>${myKills}</td><td style="color:${playerTank.isDestroyed ? '#ef4444':'#22c55e'}">${playerTank.isDestroyed ? 'ZNISZCZONY':'ŻYJE'}</td>`;
+    myTr.innerHTML = `
+        <td style="color:${myTeam === 'blue' ? '#3b82f6':'#ef4444'}; font-weight:bold;">${myTeam === 'blue' ? 'NIEBIESCY':'CZERWONI'}</td>
+        <td style="color:#f59e0b; font-weight:bold;">TY (${myClientId || 'Gracz'})</td>
+        <td>${myKills}</td>
+        <td style="color:${playerTank.isDestroyed ? '#ef4444':'#22c55e'}">${playerTank.isDestroyed ? 'ZNISZCZONY':'ŻYJE'}</td>
+    `;
     tbody.appendChild(myTr);
 
-    // Wpisy innych graczy
     Object.keys(remoteTanks).forEach(id => {
         const tank = remoteTanks[id];
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${id}</td><td>${tank.kills || 0}</td><td style="color:${tank.isDestroyed ? '#ef4444':'#22c55e'}">${tank.isDestroyed ? 'ZNISZCZONY':'ŻYJE'}</td>`;
+        const teamColor = tank.team === 'blue' ? '#3b82f6' : '#ef4444';
+        tr.innerHTML = `
+            <td style="color:${teamColor}; font-weight:bold;">${tank.team === 'blue' ? 'NIEBIESCY':'CZERWONI'}</td>
+            <td>${id}</td>
+            <td>${tank.kills || 0}</td>
+            <td style="color:${tank.isDestroyed ? '#ef4444':'#22c55e'}">${tank.isDestroyed ? 'ZNISZCZONY':'ŻYJE'}</td>
+        `;
         tbody.appendChild(tr);
     });
 
@@ -737,7 +885,7 @@ function showScoreboard(visible) {
 }
 
 function buildSky() {
-    const skyGeo = new THREE.SphereGeometry(600, 32, 15);
+    const skyGeo = new THREE.SphereGeometry(600, 16, 12);
     const skyMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.BackSide });
     SCENE.add(new THREE.Mesh(skyGeo, skyMat));
 }
@@ -756,7 +904,7 @@ function buildMap(type) {
     if (type === 'city') groundColor = 0x1e293b;
     if (type === 'desert') groundColor = 0xd97706;
 
-    const groundGeo = new THREE.PlaneGeometry(800, 800, 140, 140);
+    const groundGeo = new THREE.PlaneGeometry(800, 800, 80, 80);
     groundGeo.rotateX(-Math.PI / 2);
 
     const pos = groundGeo.attributes.position;
@@ -768,7 +916,7 @@ function buildMap(type) {
     groundGeo.computeVertexNormals();
 
     const groundMat = new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.9, flatShading: true });
-    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh = new THREE.Mesh(groundGeo, groundMat);
     groundMesh.receiveShadow = true;
     SCENE.add(groundMesh);
     collidableMeshes.push(groundMesh);
@@ -795,25 +943,34 @@ function buildMap(type) {
         const buildingMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
         const windowMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.1, metalness: 0.8, emissive: 0x1e293b });
 
+        // OPTYMALIZACJA: Wykorzystanie InstancedMesh dla okien budynków
+        const winGeo = new THREE.BoxGeometry(3, 4, 0.4);
+        const maxWindows = 3000;
+        const winInstanced = new THREE.InstancedMesh(winGeo, windowMat, maxWindows);
+        let winIdx = 0;
+        const dummy = new THREE.Object3D();
+
         for (let x = -300; x <= 300; x += 100) {
             for (let z = -300; z <= 300; z += 100) {
-                if (Math.abs(x) < 70 && Math.abs(z) < 70) continue;
+                if (Math.abs(x) < 60 && (Math.abs(z) < 60 || Math.abs(z - 200) < 60 || Math.abs(z - 350) < 60 || Math.abs(z + 350) < 60)) continue;
                 
                 const h = 35 + Math.random() * 25;
                 const bY = getTerrainHeight(x, z);
                 const bMesh = new THREE.Mesh(new THREE.BoxGeometry(45, h, 45), buildingMat);
                 bMesh.position.set(x, bY + h/2, z);
-                bMesh.castShadow = true; bMesh.receiveShadow = true;
-                
+                bMesh.castShadow = true;
+
                 for (let floor = 4; floor < h - 4; floor += 7) {
                     for (let windowX = -16; windowX <= 16; windowX += 10) {
-                        const winFront = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 0.4), windowMat);
-                        winFront.position.set(windowX, floor - h/2, 22.6);
-                        bMesh.add(winFront);
+                        if (winIdx < maxWindows) {
+                            dummy.position.set(x + windowX, bY + floor, z + 22.6);
+                            dummy.updateMatrix();
+                            winInstanced.setMatrixAt(winIdx++, dummy.matrix);
 
-                        const winBack = winFront.clone();
-                        winBack.position.z = -22.6;
-                        bMesh.add(winBack);
+                            dummy.position.set(x + windowX, bY + floor, z - 22.6);
+                            dummy.updateMatrix();
+                            winInstanced.setMatrixAt(winIdx++, dummy.matrix);
+                        }
                     }
                 }
 
@@ -823,6 +980,8 @@ function buildMap(type) {
                 obstacleBoxes.push(new THREE.Box3().setFromObject(bMesh));
             }
         }
+        winInstanced.instanceMatrix.needsUpdate = true;
+        SCENE.add(winInstanced);
     }
 }
 
@@ -840,12 +999,11 @@ function createTank(colorHex, isBot = false) {
     const trackGeo = new THREE.BoxGeometry(0.6, 0.9, 5.4);
     const trackL = new THREE.Mesh(trackGeo, trackMat);
     trackL.position.set(-1.7, 0.55, 0);
-    trackL.castShadow = true;
     const trackR = trackL.clone();
     trackR.position.x = 1.7;
     group.add(trackL, trackR);
 
-    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.7, 12);
+    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.7, 8);
     wheelGeo.rotateZ(Math.PI / 2);
     for(let z = -2.1; z <= 2.1; z += 1.05) {
         const wL = new THREE.Mesh(wheelGeo, darkMat);
@@ -868,7 +1026,7 @@ function createTank(colorHex, isBot = false) {
     gunPivot.position.set(0, 0.45, 1.3);
     turretPivot.add(gunPivot);
 
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 16).rotateX(Math.PI/2).translate(0,0,2.1), darkMat);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 12).rotateX(Math.PI/2).translate(0,0,2.1), darkMat);
     gunPivot.add(barrel);
 
     SCENE.add(group);
@@ -881,12 +1039,16 @@ function createTank(colorHex, isBot = false) {
         isBot: isBot,
         reloadTime: 0,
         isDestroyed: false,
+        isProtected: false,
         hp: 3,
         lastBotShoot: 0,
+        lastLOSCheck: 0,
+        canSeePlayer: false,
         bodyArmor: 250,
         turretArmor: 100,
         penetrationPower: 120,
-        kills: 0
+        kills: 0,
+        team: 'blue'
     };
 
     shootableTargets.push({ tank: tankObj, meshes: [body, turret] });
@@ -914,26 +1076,36 @@ function checkTankCollisions(currentTank, newPos) {
     return false;
 }
 
-function spawnPlayer() {
-    playerTank = createTank(0x2563eb);
-    let valid = false;
-    let x = 0, z = 200, y = 0;
+function hasLineOfSight(fromPos, toPos) {
+    const dir = new THREE.Vector3().subVectors(toPos, fromPos);
+    const dist = dir.length();
+    dir.normalize();
 
-    while (!valid) {
-        y = getTerrainHeight(x, z);
-        const p = new THREE.Vector3(x, y, z);
-        if (!checkObstacleCollision(p, 6.0)) {
-            valid = true;
-        } else {
-            z += 10;
-        }
+    const ray = new THREE.Raycaster(fromPos, dir, 0, dist);
+    const hits = ray.intersectObjects(collidableMeshes);
+
+    return hits.length === 0;
+}
+
+function spawnPlayer() {
+    const color = myTeam === 'blue' ? 0x2563eb : 0xef4444;
+    playerTank = createTank(color);
+    
+    let spawnPoint;
+    if (isMultiplayer) {
+        spawnPoint = myTeam === 'blue' ? SPAWN_BLUE : SPAWN_RED;
+    } else {
+        spawnPoint = new THREE.Vector3(0, 0, 200);
     }
-    playerTank.mesh.position.set(x, y, z);
+
+    const safePos = getSafeSpawnPosition(spawnPoint);
+    playerTank.mesh.position.copy(safePos);
 }
 
 function spawnBots(count) {
     for (let i = 0; i < count; i++) {
         const bot = createTank(0xd97706, true);
+        bot.team = 'red';
         let validPos = false;
         let x = 0, z = 0, y = 0;
 
@@ -958,9 +1130,10 @@ function fire(tank) {
     if (tank.reloadTime > 0 || tank.isDestroyed) return;
     tank.reloadTime = 2000;
 
+    const bulletColor = tank.team === 'blue' ? 0x60a5fa : 0xef4444;
     const bullet = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18),
-        new THREE.MeshBasicMaterial({ color: tank.isBot ? 0xef4444 : 0x60a5fa })
+        new THREE.SphereGeometry(0.18, 8, 8),
+        new THREE.MeshBasicMaterial({ color: bulletColor })
     );
 
     const muzzlePos = new THREE.Vector3();
@@ -999,9 +1172,10 @@ function fireRemote(clientId) {
     const tank = remoteTanks[clientId];
     if (!tank || tank.isDestroyed) return;
 
+    const bulletColor = tank.team === 'blue' ? 0x60a5fa : 0xef4444;
     const bullet = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18),
-        new THREE.MeshBasicMaterial({ color: 0xef4444 })
+        new THREE.SphereGeometry(0.18, 8, 8),
+        new THREE.MeshBasicMaterial({ color: bulletColor })
     );
 
     const muzzlePos = new THREE.Vector3();
@@ -1032,11 +1206,13 @@ function animate(currentTime) {
 
     if (isPaused) return;
 
-    const delta = currentTime - lastTime;
+    // Delta Time dla zachowania płynności 60Hz
+    const rawDelta = currentTime - lastTime;
     lastTime = currentTime;
+    const dt = Math.min(rawDelta / 1000, 0.05);
 
     if (playerTank.reloadTime > 0) {
-        playerTank.reloadTime -= delta;
+        playerTank.reloadTime -= rawDelta;
         const progress = Math.max(0, 1 - (playerTank.reloadTime / 2000));
         document.getElementById('reload-bar').style.width = `${progress * 100}%`;
     }
@@ -1044,10 +1220,10 @@ function animate(currentTime) {
     if (!playerTank.isDestroyed) {
         const oldPos = playerTank.mesh.position.clone();
 
-        if (keys['w']) playerTank.mesh.translateZ(TANK_SPEED);
-        if (keys['s']) playerTank.mesh.translateZ(-TANK_SPEED * 0.5);
-        if (keys['a']) playerTank.mesh.rotation.y += TANK_ROTATE_SPEED;
-        if (keys['d']) playerTank.mesh.rotation.y -= TANK_ROTATE_SPEED;
+        if (keys['w']) playerTank.mesh.translateZ(TANK_SPEED * dt);
+        if (keys['s']) playerTank.mesh.translateZ(-TANK_SPEED * 0.5 * dt);
+        if (keys['a']) playerTank.mesh.rotation.y += TANK_ROTATE_SPEED * dt;
+        if (keys['d']) playerTank.mesh.rotation.y -= TANK_ROTATE_SPEED * dt;
 
         playerTank.mesh.position.y = getTerrainHeight(playerTank.mesh.position.x, playerTank.mesh.position.z);
 
@@ -1058,26 +1234,31 @@ function animate(currentTime) {
         playerTank.mesh.position.x = THREE.MathUtils.clamp(playerTank.mesh.position.x, -390, 390);
         playerTank.mesh.position.z = THREE.MathUtils.clamp(playerTank.mesh.position.z, -390, 390);
 
-        raycaster.setFromCamera(mouse, CAMERA);
-        const intersects = raycaster.intersectObjects(collidableMeshes);
+        // OPTYMALIZACJA: Raycast celowania sprawdza wyłącznie podłoże
+        if (groundMesh) {
+            raycaster.setFromCamera(mouse, CAMERA);
+            const intersects = raycaster.intersectObject(groundMesh);
 
-        if (intersects.length > 0) {
-            const targetPoint = intersects[0].point;
-            const localTarget = playerTank.mesh.worldToLocal(targetPoint.clone());
-            const targetTurretAngle = Math.atan2(localTarget.x, localTarget.z);
-            playerTank.turretPivot.rotation.y = THREE.MathUtils.lerp(playerTank.turretPivot.rotation.y, targetTurretAngle, 0.15);
+            if (intersects.length > 0) {
+                const targetPoint = intersects[0].point;
+                const localTarget = playerTank.mesh.worldToLocal(targetPoint.clone());
+                const targetTurretAngle = Math.atan2(localTarget.x, localTarget.z);
+                playerTank.turretPivot.rotation.y = THREE.MathUtils.lerp(playerTank.turretPivot.rotation.y, targetTurretAngle, 0.2);
 
-            const dist = Math.sqrt(localTarget.x * localTarget.x + localTarget.z * localTarget.z);
-            const targetGunAngle = Math.atan2(localTarget.y - 1.8, dist);
-            playerTank.gunPivot.rotation.x = THREE.MathUtils.lerp(playerTank.gunPivot.rotation.x, THREE.MathUtils.clamp(-targetGunAngle, -0.1, 0.35), 0.15);
+                const dist = Math.sqrt(localTarget.x * localTarget.x + localTarget.z * localTarget.z);
+                const targetGunAngle = Math.atan2(localTarget.y - 1.8, dist);
+                playerTank.gunPivot.rotation.x = THREE.MathUtils.lerp(playerTank.gunPivot.rotation.x, THREE.MathUtils.clamp(-targetGunAngle, -0.1, 0.35), 0.2);
+            }
         }
 
         const camOffset = new THREE.Vector3(0, 5, -12).applyMatrix4(playerTank.mesh.matrixWorld);
         CAMERA.position.lerp(camOffset, 0.1);
         CAMERA.lookAt(playerTank.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0)));
 
-        if (isMultiplayer) {
+        // OPTYMALIZACJA SIEĆ: Wysyłanie pakietu pozycji z częstotliwością ~30Hz
+        if (isMultiplayer && currentTime - lastNetworkSend > 33) {
             sendMyPosition();
+            lastNetworkSend = currentTime;
         }
     }
 
@@ -1087,35 +1268,43 @@ function animate(currentTime) {
             if (bot.isDestroyed) return;
             activeBots++;
 
-            if (bot.reloadTime > 0) bot.reloadTime -= delta;
+            if (bot.reloadTime > 0) bot.reloadTime -= rawDelta;
 
             if (!playerTank.isDestroyed) {
-                const botPos = bot.mesh.position;
-                const playerPos = playerTank.mesh.position;
+                const botPos = bot.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0));
+                const playerPos = playerTank.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0));
                 const distToPlayer = botPos.distanceTo(playerPos);
 
-                if (distToPlayer > 35) {
-                    const oldBotPos = botPos.clone();
-                    bot.mesh.lookAt(playerPos.x, botPos.y, playerPos.z);
-                    bot.mesh.translateZ(TANK_SPEED * 0.45);
-                    
-                    bot.mesh.position.y = getTerrainHeight(bot.mesh.position.x, bot.mesh.position.z);
-
-                    if (checkObstacleCollision(bot.mesh.position, 3.2) || checkTankCollisions(bot, bot.mesh.position)) {
-                        bot.mesh.position.copy(oldBotPos);
-                    }
+                // OPTYMALIZACJA: Test widoczności botów wykonywany co 100 ms
+                if (currentTime - bot.lastLOSCheck > 100) {
+                    bot.canSeePlayer = hasLineOfSight(botPos, playerPos);
+                    bot.lastLOSCheck = currentTime;
                 }
 
-                const targetVector = playerPos.clone().add(new THREE.Vector3(
-                    (Math.sin(currentTime * 0.002) * 5), 
-                    1.2, 
-                    (Math.cos(currentTime * 0.002) * 5)
-                ));
-                bot.turretPivot.lookAt(targetVector);
+                if (bot.canSeePlayer) {
+                    if (distToPlayer > 35) {
+                        const oldBotPos = bot.mesh.position.clone();
+                        bot.mesh.lookAt(playerTank.mesh.position.x, bot.mesh.position.y, playerTank.mesh.position.z);
+                        bot.mesh.translateZ(TANK_SPEED * 0.45 * dt);
+                        
+                        bot.mesh.position.y = getTerrainHeight(bot.mesh.position.x, bot.mesh.position.z);
 
-                if (currentTime - bot.lastBotShoot > 3200 && distToPlayer < 250) {
-                    fire(bot);
-                    bot.lastBotShoot = currentTime;
+                        if (checkObstacleCollision(bot.mesh.position, 3.2) || checkTankCollisions(bot, bot.mesh.position)) {
+                            bot.mesh.position.copy(oldBotPos);
+                        }
+                    }
+
+                    const targetVector = playerPos.clone().add(new THREE.Vector3(
+                        (Math.sin(currentTime * 0.002) * 2), 
+                        0, 
+                        (Math.cos(currentTime * 0.002) * 2)
+                    ));
+                    bot.turretPivot.lookAt(targetVector);
+
+                    if (currentTime - bot.lastBotShoot > 3200 && distToPlayer < 250) {
+                        fire(bot);
+                        bot.lastBotShoot = currentTime;
+                    }
                 }
             }
         });
@@ -1126,9 +1315,10 @@ function animate(currentTime) {
         document.getElementById('bot-count').innerText = `${t.players}: ${Object.keys(remoteTanks).length + 1} / 20`;
     }
 
+    // AKTUALIZACJA POCISKÓW
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.mesh.position.add(b.velocity);
+        b.mesh.position.addScaledVector(b.velocity, dt * 60);
         b.life--;
 
         const bulletRay = new THREE.Raycaster(b.mesh.position, b.velocity.clone().normalize(), 0, b.velocity.length());
@@ -1148,6 +1338,8 @@ function animate(currentTime) {
             const target = targetObj.tank;
             if (target.isDestroyed || target === b.owner) return;
 
+            if (isMultiplayer && b.owner.team === target.team) return;
+
             const hits = bulletRay.intersectObjects(targetObj.meshes);
 
             if (hits.length > 0) {
@@ -1163,46 +1355,49 @@ function animate(currentTime) {
 
                 if (b.penetration < effectiveArmor) {
                     if (b.owner === playerTank) {
-                        xrayEl.innerHTML = `<b style='color:#38bdf8'>${t.noPen}</b><br>Hit: ${isTurret ? t.turret : t.hull} (250mm)`;
+                        xrayEl.innerHTML = `<b style='color:#38bdf8'>${t.noPen}</b><br>Hit: ${isTurret ? t.turret : t.hull}`;
                     }
                 } else {
-                    target.hp -= 1;
+                    if (target === playerTank) {
+                        applyDamageToPlayer(1, b.owner.isBot ? "Bot" : (b.owner.clientId || "Gracz"));
+                    } else {
+                        target.hp -= 1;
 
-                    // PRZEKAZYWANIE TRAFIENIA SIECIOWEGO DO DRUGIEGO GRACZA
-                    if (isMultiplayer && b.owner === playerTank) {
-                        Object.keys(remoteTanks).forEach(remoteId => {
-                            if (remoteTanks[remoteId] === target) {
-                                const pc = peerConnections[remoteId];
-                                if (pc && pc.dataChannel && pc.dataChannel.readyState === 'open') {
-                                    pc.dataChannel.send(JSON.stringify({ type: 'hit', damage: 1 }));
-                                }
-                            }
-                        });
-                    }
-
-                    if (b.owner === playerTank) {
-                        xrayEl.innerHTML = `<b style='color:#ef4444'>${t.pen}</b><br>HP: ${target.hp}/3`;
-                    }
-
-                    if (target.hp <= 0) {
-                        target.isDestroyed = true;
-                        target.mesh.traverse(c => { 
-                            if(c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 }); 
-                        });
-                        
-                        if (b.owner === playerTank) {
-                            myKills++;
-                            const victimName = target.isBot ? "Bot" : (target.clientId || "Gracz");
-                            addKillFeedMsg(`${myClientId || 'Ty'} 💥 ${victimName}`);
-
-                            if (isMultiplayer) {
-                                const broadcast = JSON.stringify({ type: 'killBroadcast', killer: myClientId || 'Ty', victim: victimName });
-                                Object.keys(peerConnections).forEach(id => {
-                                    const pc = peerConnections[id];
-                                    if (pc.dataChannel && pc.dataChannel.readyState === 'open') {
-                                        pc.dataChannel.send(broadcast);
+                        if (isMultiplayer && b.owner === playerTank) {
+                            Object.keys(remoteTanks).forEach(remoteId => {
+                                if (remoteTanks[remoteId] === target) {
+                                    const pc = peerConnections[remoteId];
+                                    if (pc && pc.dataChannel && pc.dataChannel.readyState === 'open') {
+                                        pc.dataChannel.send(JSON.stringify({ type: 'hit', damage: 1 }));
                                     }
-                                });
+                                }
+                            });
+                        }
+
+                        if (b.owner === playerTank) {
+                            xrayEl.innerHTML = `<b style='color:#ef4444'>${t.pen}</b><br>HP: ${target.hp}/3`;
+                        }
+
+                        if (target.hp <= 0) {
+                            target.isDestroyed = true;
+                            target.mesh.traverse(c => { 
+                                if(c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 }); 
+                            });
+                            
+                            if (b.owner === playerTank) {
+                                myKills++;
+                                const victimName = target.isBot ? "Bot" : (target.clientId || "Gracz");
+                                addKillFeedMsg(`${myClientId || 'Ty'} 💥 ${victimName}`);
+
+                                if (isMultiplayer) {
+                                    const broadcast = JSON.stringify({ type: 'killBroadcast', killer: myClientId || 'Ty', victim: victimName });
+                                    Object.keys(peerConnections).forEach(id => {
+                                        const pc = peerConnections[id];
+                                        if (pc && pc.dataChannel && pc.dataChannel.readyState === 'open') {
+                                            pc.dataChannel.send(broadcast);
+                                        }
+                                    });
+                                }
                             }
                         }
                     }
