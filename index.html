@@ -287,7 +287,7 @@ function changeLanguage(lang) {
 function openOptions() { document.getElementById('options-overlay').style.display = 'flex'; }
 function closeOptions() { document.getElementById('options-overlay').style.display = 'none'; }
 
-const SIGNAL_SERVER = "wss://war-thunder-multiplayer.onrender.com/"; 
+const SIGNAL_SERVER = "wss://moj-war-thunder.onrender.com"; 
 
 let ws;
 let isMultiplayer = false;
@@ -317,7 +317,6 @@ let myKills = 0;
 let animFrameId = null;
 let lastNetworkSend = 0;
 
-// PREDKOSCI SKALOWANE W CZASIE (Dla płynnego 60 FPS)
 const TANK_SPEED = 18.0; 
 const TANK_ROTATE_SPEED = 1.5;
 const TANK_RADIUS = 3.2;
@@ -783,6 +782,13 @@ function resumeGame() {
     document.getElementById('pause-overlay').style.display = 'none';
 }
 
+function lerpAngle(start, end, amount) {
+    let diff = end - start;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    return start + diff * amount;
+}
+
 function initEngine() {
     SCENE = new THREE.Scene();
 
@@ -943,7 +949,6 @@ function buildMap(type) {
         const buildingMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
         const windowMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, roughness: 0.1, metalness: 0.8, emissive: 0x1e293b });
 
-        // OPTYMALIZACJA: Wykorzystanie InstancedMesh dla okien budynków
         const winGeo = new THREE.BoxGeometry(3, 4, 0.4);
         const maxWindows = 3000;
         const winInstanced = new THREE.InstancedMesh(winGeo, windowMat, maxWindows);
@@ -1206,7 +1211,6 @@ function animate(currentTime) {
 
     if (isPaused) return;
 
-    // Delta Time dla zachowania płynności 60Hz
     const rawDelta = currentTime - lastTime;
     lastTime = currentTime;
     const dt = Math.min(rawDelta / 1000, 0.05);
@@ -1234,28 +1238,35 @@ function animate(currentTime) {
         playerTank.mesh.position.x = THREE.MathUtils.clamp(playerTank.mesh.position.x, -390, 390);
         playerTank.mesh.position.z = THREE.MathUtils.clamp(playerTank.mesh.position.z, -390, 390);
 
-        // OPTYMALIZACJA: Raycast celowania sprawdza wyłącznie podłoże
+        // BEZPOŚREDNIA POPRAWKA CELOWANIA W NIEBO I DOWOLNY PUNKT:
         if (groundMesh) {
             raycaster.setFromCamera(mouse, CAMERA);
             const intersects = raycaster.intersectObject(groundMesh);
 
-            if (intersects.length > 0) {
-                const targetPoint = intersects[0].point;
-                const localTarget = playerTank.mesh.worldToLocal(targetPoint.clone());
-                const targetTurretAngle = Math.atan2(localTarget.x, localTarget.z);
-                playerTank.turretPivot.rotation.y = THREE.MathUtils.lerp(playerTank.turretPivot.rotation.y, targetTurretAngle, 0.2);
+            // Jeśli trafiamy w ziemię, bierzemy punkt trafienia. Jeśli w niebo – bierzemy punkt w dali.
+            const targetPoint = (intersects.length > 0) 
+                ? intersects[0].point 
+                : raycaster.ray.at(500, new THREE.Vector3());
 
-                const dist = Math.sqrt(localTarget.x * localTarget.x + localTarget.z * localTarget.z);
-                const targetGunAngle = Math.atan2(localTarget.y - 1.8, dist);
-                playerTank.gunPivot.rotation.x = THREE.MathUtils.lerp(playerTank.gunPivot.rotation.x, THREE.MathUtils.clamp(-targetGunAngle, -0.1, 0.35), 0.2);
-            }
+            const localTarget = playerTank.mesh.worldToLocal(targetPoint.clone());
+            const targetTurretAngle = Math.atan2(localTarget.x, localTarget.z);
+            
+            const lerpFactor = Math.min(1.0, 18.0 * dt);
+            playerTank.turretPivot.rotation.y = lerpAngle(playerTank.turretPivot.rotation.y, targetTurretAngle, lerpFactor);
+
+            const dist = Math.sqrt(localTarget.x * localTarget.x + localTarget.z * localTarget.z);
+            const targetGunAngle = Math.atan2(localTarget.y - 1.8, dist);
+            playerTank.gunPivot.rotation.x = THREE.MathUtils.lerp(
+                playerTank.gunPivot.rotation.x, 
+                THREE.MathUtils.clamp(-targetGunAngle, -0.1, 0.35), 
+                lerpFactor
+            );
         }
 
         const camOffset = new THREE.Vector3(0, 5, -12).applyMatrix4(playerTank.mesh.matrixWorld);
         CAMERA.position.lerp(camOffset, 0.1);
         CAMERA.lookAt(playerTank.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0)));
 
-        // OPTYMALIZACJA SIEĆ: Wysyłanie pakietu pozycji z częstotliwością ~30Hz
         if (isMultiplayer && currentTime - lastNetworkSend > 33) {
             sendMyPosition();
             lastNetworkSend = currentTime;
@@ -1275,7 +1286,6 @@ function animate(currentTime) {
                 const playerPos = playerTank.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0));
                 const distToPlayer = botPos.distanceTo(playerPos);
 
-                // OPTYMALIZACJA: Test widoczności botów wykonywany co 100 ms
                 if (currentTime - bot.lastLOSCheck > 100) {
                     bot.canSeePlayer = hasLineOfSight(botPos, playerPos);
                     bot.lastLOSCheck = currentTime;
@@ -1315,7 +1325,6 @@ function animate(currentTime) {
         document.getElementById('bot-count').innerText = `${t.players}: ${Object.keys(remoteTanks).length + 1} / 20`;
     }
 
-    // AKTUALIZACJA POCISKÓW
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.mesh.position.addScaledVector(b.velocity, dt * 60);
